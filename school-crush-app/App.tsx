@@ -11,14 +11,15 @@ import FeedScreen from './screens/FeedScreen';
 import PostCreateScreen from './screens/PostCreateScreen';
 import CommentsScreen from './screens/CommentsScreen';
 import ReportScreen from './screens/ReportScreen';
-import SplashScreen from './screens/SplashScreen';
 import AdminDashboardScreen from './screens/AdminDashboardScreen';
 import SettingsScreen from './screens/SettingsScreen';
 import PrivacyPolicyScreen from './screens/PrivacyPolicyScreen';
 
+// Keep the splash screen visible while we fetch resources
+SplashScreen.preventAutoHideAsync();
+
 // Root Param Lists
 export type RootStackParamList = {
-  Splash: undefined;
   AuthStack: undefined;
   Onboarding: undefined;
   MainStack: undefined;
@@ -87,25 +88,24 @@ function MainNavigator() {
 }
 
 function Navigation() {
-  const { session, loading, hasProfile, profile } = useAuth();
-  const [isSplashFinished, setIsSplashFinished] = React.useState(false);
+  const { session, loading, hasProfile, profile, signOut } = useAuth();
 
   // Check for ban
   const isBanned = profile && profile.strikes >= 3;
 
   React.useEffect(() => {
-    const timer = setTimeout(() => {
-      setIsSplashFinished(true);
-    }, 2500);
-    return () => clearTimeout(timer);
-  }, []);
+    async function handleSplashScreen() {
+      if (!loading) {
+        // Wait a small bit more for UI to be ready
+        await new Promise(resolve => setTimeout(resolve, 500));
+        await SplashScreen.hideAsync();
+      }
+    }
+    handleSplashScreen();
+  }, [loading]);
 
-  if (loading || !isSplashFinished) {
-    return (
-      <RootStack.Navigator screenOptions={{ headerShown: false }}>
-        <RootStack.Screen name="Splash" component={SplashScreen} />
-      </RootStack.Navigator>
-    );
+  if (loading) {
+    return null; // Return null while loading, native splash screen is showing
   }
 
   if (isBanned) {
@@ -117,8 +117,11 @@ function Navigation() {
           <Text style={styles.bannedText}>
             Dein Account wurde aufgrund von wiederholten Regelverstößen gesperrt.
           </Text>
-          <TouchableOpacity style={styles.bannedButton} onPress={() => { }}>
-            <Text style={styles.bannedButtonText}>OK</Text>
+          <TouchableOpacity 
+             style={styles.bannedButton} 
+             onPress={() => signOut()}
+          >
+            <Text style={styles.bannedButtonText}>OK (Abmelden)</Text>
           </TouchableOpacity>
         </View>
       </View>
