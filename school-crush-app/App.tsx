@@ -14,6 +14,7 @@ import ReportScreen from './screens/ReportScreen';
 import AdminDashboardScreen from './screens/AdminDashboardScreen';
 import SettingsScreen from './screens/SettingsScreen';
 import PrivacyPolicyScreen from './screens/PrivacyPolicyScreen';
+import * as SplashScreen from 'expo-splash-screen';
 
 // Keep the splash screen visible while we fetch resources
 SplashScreen.preventAutoHideAsync();

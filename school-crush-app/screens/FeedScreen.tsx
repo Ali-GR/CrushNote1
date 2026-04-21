@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
-import { View, FlatList, StyleSheet, RefreshControl, Text, TouchableOpacity, Dimensions, Animated, Easing } from 'react-native';
+import { View, FlatList, StyleSheet, RefreshControl, Text, TouchableOpacity, Dimensions, Animated, Easing, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { supabase } from '../lib/supabase';
 import { PostCard } from '../components/PostCard';
@@ -8,6 +8,13 @@ import { useFocusEffect } from '@react-navigation/native';
 import { useAuth } from '../context/AuthContext';
 import { LinearGradient } from 'expo-linear-gradient';
 import { FloatingHeart } from '../components/HeartAnimation';
+import { BannerAd, BannerAdSize, TestIds } from 'react-native-google-mobile-ads';
+
+const AD_UNIT_ID = __DEV__ 
+  ? TestIds.ADAPTIVE_BANNER 
+  : (Platform.OS === 'ios' 
+      ? process.env.EXPO_PUBLIC_ADMOB_IOS_BANNER_ID 
+      : process.env.EXPO_PUBLIC_ADMOB_ANDROID_BANNER_ID) || TestIds.ADAPTIVE_BANNER;
 
 const { width } = Dimensions.get('window');
 
@@ -134,18 +141,41 @@ export default function FeedScreen({ navigation }: any) {
                 </View>
 
                 <FlatList
-                    data={posts}
+                    data={(() => {
+                        const dataWithAds = [];
+                        posts.forEach((post, index) => {
+                            dataWithAds.push(post);
+                            // Insert ad every 4th post
+                            if ((index + 1) % 4 === 0) {
+                                dataWithAds.push({ id: `ad-${index}`, isAd: true });
+                            }
+                        });
+                        return dataWithAds;
+                    })()}
                     keyExtractor={(item) => item.id}
-                    renderItem={({ item }) => (
-                        <PostCard
-                            post={item}
-                            onPress={() => navigation.navigate('Comments', { postId: item.id })}
-                            onLike={addHeart}
-                            onReport={() => navigation.navigate('Report', { targetId: item.id, type: 'post' })}
-                            userId={user?.id}
-                            commentCount={commentCounts[item.id] || 0}
-                        />
-                    )}
+                    renderItem={({ item }) => {
+                        if (item.isAd) {
+                            return (
+                                <View style={styles.adContainer}>
+                                    <Text style={styles.adLabel}>Anzeige</Text>
+                                    <BannerAd
+                                        unitId={AD_UNIT_ID}
+                                        size={BannerAdSize.ANCHORED_ADAPTIVE_BANNER}
+                                    />
+                                </View>
+                            );
+                        }
+                        return (
+                            <PostCard
+                                post={item}
+                                onPress={() => navigation.navigate('Comments', { post: item })}
+                                onLike={addHeart}
+                                onReport={() => navigation.navigate('Report', { targetId: item.id, type: 'post' })}
+                                userId={user?.id}
+                                commentCount={commentCounts[item.id] || 0}
+                            />
+                        );
+                    }}
                     contentContainerStyle={styles.list}
                     refreshControl={
                         <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#FF10F0" />
@@ -276,5 +306,20 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         borderWidth: 2,
         borderColor: 'rgba(255,255,255,0.2)',
+    },
+    adContainer: {
+        marginVertical: 12,
+        alignItems: 'center',
+        backgroundColor: 'rgba(255, 255, 255, 0.05)',
+        borderRadius: 12,
+        paddingVertical: 10,
+        overflow: 'hidden',
+    },
+    adLabel: {
+        color: 'rgba(255, 255, 255, 0.4)',
+        fontSize: 10,
+        marginBottom: 4,
+        textTransform: 'uppercase',
+        letterSpacing: 1,
     },
 });

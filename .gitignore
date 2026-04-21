@@ -1,0 +1,12 @@
+node_modules/
+.expo/
+.vscode/
+.idea/
+school-crush-app/node_modules/
+school-crush-app/.expo/
+school-crush-app/ios/
+school-crush-app/android/
+school-crush-app/.env
+school-crush-app/config_transfer.txt
+package-lock.json
+*.log
