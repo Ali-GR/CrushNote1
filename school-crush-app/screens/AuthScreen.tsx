@@ -21,13 +21,13 @@ export default function AuthScreen() {
             password: password.trim(),
         });
 
-        if (error) Alert.alert('Login Failed', error.message);
+        if (error) Alert.alert('Login fehlgeschlagen', error.message);
         setLoading(false);
     }
 
     async function signUpWithEmail() {
         if (!ageConfirmed) {
-            Alert.alert('Age Requirement', 'You must be at least 12 years old to join.');
+            Alert.alert('Altersbeschränkung', 'Du musst mindestens 12 Jahre alt sein, um beizutreten.');
             return;
         }
 
@@ -40,27 +40,14 @@ export default function AuthScreen() {
         });
 
         if (signUpError) {
-            Alert.alert('Sign Up Failed', signUpError.message);
+            Alert.alert('Registrierung fehlgeschlagen', signUpError.message);
             setLoading(false);
             return;
         }
 
         if (authData.user) {
-            // HIER kommt der wichtige Teil: Wir müssen zuerst eine Schule auswählen!
-            // Aber da wir noch keine Schulauswahl haben, müssen wir das erstellen
-            Alert.alert(
-                'School Required',
-                'Please select your school first.',
-                [
-                    {
-                        text: 'OK',
-                        onPress: () => {
-                            // TODO: Navigate to school selection screen
-                            setLoading(false);
-                        }
-                    }
-                ]
-            );
+            // Navigation handles the logic: session exists but profile doesn't -> Onboarding starts automatically
+            setLoading(false);
         }
     }
 
@@ -82,7 +69,7 @@ export default function AuthScreen() {
                         </View>
                         <Text style={styles.header}>Crush Note</Text>
                         <Text style={styles.subheader}>
-                            {isLogin ? 'Welcome Back' : 'Join Your School'}
+                            {isLogin ? 'Willkommen zurück' : 'Wähle deine Schule'}
                         </Text>
                     </View>
 
@@ -97,7 +84,7 @@ export default function AuthScreen() {
                             placeholder="your@email.com"
                         />
                         <Input
-                            label="Password"
+                            label="Passwort"
                             value={password}
                             onChangeText={setPassword}
                             secureTextEntry
@@ -117,20 +104,20 @@ export default function AuthScreen() {
                                     {ageConfirmed && <Check color="#fff" size={16} />}
                                 </View>
                                 <Text style={styles.checkboxLabel}>
-                                    I confirm I am at least 14 years old
+                                    Ich bestätige, dass ich mindestens 14 Jahre alt bin
                                 </Text>
                             </TouchableOpacity>
                         )}
 
                         <Button
-                            title={isLogin ? 'Sign In' : 'Sign Up'}
+                            title={isLogin ? 'Anmelden' : 'Registrieren'}
                             loading={loading}
                             onPress={isLogin ? signInWithEmail : signUpWithEmail}
                             style={styles.mainButton}
                         />
 
                         <Button
-                            title={isLogin ? 'Need an account? Sign Up' : 'Already have an account? Sign In'}
+                            title={isLogin ? 'Noch kein Konto? Registrieren' : 'Bereits ein Konto? Anmelden'}
                             variant="secondary"
                             onPress={() => setIsLogin(!isLogin)}
                             style={styles.switchButton}

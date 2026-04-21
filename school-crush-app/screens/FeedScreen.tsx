@@ -8,13 +8,30 @@ import { useFocusEffect } from '@react-navigation/native';
 import { useAuth } from '../context/AuthContext';
 import { LinearGradient } from 'expo-linear-gradient';
 import { FloatingHeart } from '../components/HeartAnimation';
-import { BannerAd, BannerAdSize, TestIds } from 'react-native-google-mobile-ads';
+import Constants from 'expo-constants';
 
-const AD_UNIT_ID = __DEV__ 
-  ? TestIds.ADAPTIVE_BANNER 
-  : (Platform.OS === 'ios' 
-      ? process.env.EXPO_PUBLIC_ADMOB_IOS_BANNER_ID 
-      : process.env.EXPO_PUBLIC_ADMOB_ANDROID_BANNER_ID) || TestIds.ADAPTIVE_BANNER;
+const isExpoGo = Constants.appOwnership === 'expo';
+
+// Only require AdMob if not in Expo Go to avoid missing native module crash
+let BannerAd: any, BannerAdSize: any, TestIds: any;
+if (!isExpoGo) {
+    try {
+        const AdMob = require('react-native-google-mobile-ads');
+        BannerAd = AdMob.BannerAd;
+        BannerAdSize = AdMob.BannerAdSize;
+        TestIds = AdMob.TestIds;
+    } catch (e) {
+        console.warn("AdMob module not found, skipping ads.");
+    }
+}
+
+const AD_UNIT_ID = (isExpoGo || !TestIds)
+  ? 'unused'
+  : __DEV__ 
+    ? TestIds.ADAPTIVE_BANNER 
+    : (Platform.OS === 'ios' 
+        ? process.env.EXPO_PUBLIC_ADMOB_IOS_BANNER_ID 
+        : process.env.EXPO_PUBLIC_ADMOB_ANDROID_BANNER_ID) || TestIds.ADAPTIVE_BANNER;
 
 const { width } = Dimensions.get('window');
 
@@ -155,6 +172,13 @@ export default function FeedScreen({ navigation }: any) {
                     keyExtractor={(item) => item.id}
                     renderItem={({ item }) => {
                         if (item.isAd) {
+                            if (isExpoGo) {
+                                return (
+                                    <View style={[styles.adContainer, { height: 60, justifyContent: 'center' }]}>
+                                        <Text style={styles.adLabel}>Werbung Platzhalter (In Expo Go deaktiviert)</Text>
+                                    </View>
+                                );
+                            }
                             return (
                                 <View style={styles.adContainer}>
                                     <Text style={styles.adLabel}>Anzeige</Text>
