@@ -3,24 +3,27 @@
     "name": "Crush Note",
     "slug": "school-crush-app",
     "version": "1.0.0",
+    "scheme": "school-crush-app",
     "orientation": "portrait",
     "icon": "./assets/logo.jpeg",
-    "userInterfaceStyle": "light",
+    "userInterfaceStyle": "dark",
     "newArchEnabled": true,
     "splash": {
-      "image": "./assets/splash-icon.png",
+      "image": "./assets/logo.jpeg",
       "resizeMode": "contain",
-      "backgroundColor": "#2d0a1f"
+      "backgroundColor": "#0C0C1C"
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.crushnote.app"
+      "bundleIdentifier": "com.crushnote.app",
+      "googleServicesFile": "./GoogleService-Info.plist"
     },
     "android": {
       "package": "com.crushnote.app",
+      "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
         "foregroundImage": "./assets/logo.jpeg",
-        "backgroundColor": "#2d0a1f"
+        "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false
@@ -30,14 +33,26 @@
     },
     "plugins": [
       "expo-asset",
-      "expo-splash-screen",
       [
         "react-native-google-mobile-ads",
         {
-          "androidAppId": "ca-app-pub-3940256099942544~3347511713",
-          "iosAppId": "ca-app-pub-3940256099942544~1458002511"
+          "androidAppId": "ca-app-pub-2229065647862844~1547218328",
+          "iosAppId": "ca-app-pub-2229065647862844~7677512401",
+          "userTrackingUsageDescription": "Diese App verwendet Tracking-Daten, um dir personalisierte und relevante Werbung anzuzeigen."
+        }
+      ],
+      [
+        "expo-tracking-transparency",
+        {
+          "userTrackingPermission": "Diese App verwendet Tracking-Daten, um dir personalisierte Werbung anzuzeigen."
         }
       ]
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "3677b5b7-4bcb-4a4b-8b8a-4736a249be80"
+      }
+    },
+    "owner": "algobanyali"
   }
 }

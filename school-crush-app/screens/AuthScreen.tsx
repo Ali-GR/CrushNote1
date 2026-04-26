@@ -4,8 +4,10 @@ import { supabase } from '../lib/supabase';
 import { Button } from '../components/Button';
 import { Input } from '../components/Input';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Check, Heart } from 'lucide-react-native';
+import { Check, Heart, Mail, Lock, UserPlus, LogIn } from 'lucide-react-native';
 import { TouchableOpacity } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { BlurView } from 'expo-blur';
 
 export default function AuthScreen() {
     const [isLogin, setIsLogin] = useState(true);
@@ -21,7 +23,7 @@ export default function AuthScreen() {
             password: password.trim(),
         });
 
-        if (error) Alert.alert('Login fehlgeschlagen', error.message);
+        if (error) Alert.alert('Login fehlgeschlagen', 'E-Mail oder Passwort ist falsch.');
         setLoading(false);
     }
 
@@ -33,7 +35,6 @@ export default function AuthScreen() {
 
         setLoading(true);
 
-        // Zuerst den Benutzer registrieren
         const { data: authData, error: signUpError } = await supabase.auth.signUp({
             email: email.trim(),
             password: password.trim(),
@@ -46,8 +47,19 @@ export default function AuthScreen() {
         }
 
         if (authData.user) {
-            // Navigation handles the logic: session exists but profile doesn't -> Onboarding starts automatically
-            setLoading(false);
+            Alert.alert(
+                'Fast geschafft! 📧',
+                'Wir haben dir eine Bestätigungs-E-Mail gesendet. Bitte klicke auf den Link in der E-Mail, um dein Konto zu aktivieren. Danach kannst du dich einloggen!',
+                [
+                    {
+                        text: 'Verstanden',
+                        onPress: () => {
+                            setLoading(false);
+                            setIsLogin(true); // Switch to login tab
+                        }
+                    }
+                ]
+            );
         }
     }
 
@@ -67,21 +79,21 @@ export default function AuthScreen() {
                         <View style={styles.iconContainer}>
                             <Heart color="#ff69b4" size={40} fill="#ff69b4" />
                         </View>
-                        <Text style={styles.header}>Crush Note</Text>
+                        <Text style={styles.headerTitle}>Crush Note</Text>
                         <Text style={styles.subheader}>
-                            {isLogin ? 'Willkommen zurück' : 'Wähle deine Schule'}
+                            {isLogin ? 'Willkommen zurück' : 'Deiner Schule beitreten'}
                         </Text>
                     </View>
 
                     {/* Form Container */}
                     <View style={styles.formContainer}>
                         <Input
-                            label="Email"
+                            label="E-Mail"
                             value={email}
                             onChangeText={setEmail}
                             autoCapitalize="none"
                             keyboardType="email-address"
-                            placeholder="your@email.com"
+                            placeholder="deine@email.de"
                         />
                         <Input
                             label="Passwort"
@@ -104,20 +116,20 @@ export default function AuthScreen() {
                                     {ageConfirmed && <Check color="#fff" size={16} />}
                                 </View>
                                 <Text style={styles.checkboxLabel}>
-                                    Ich bestätige, dass ich mindestens 14 Jahre alt bin
+                                    Ich bestätige, dass ich mindestens 12 Jahre alt bin
                                 </Text>
                             </TouchableOpacity>
                         )}
 
                         <Button
-                            title={isLogin ? 'Anmelden' : 'Registrieren'}
+                            title={isLogin ? 'Einloggen' : 'Registrieren'}
                             loading={loading}
                             onPress={isLogin ? signInWithEmail : signUpWithEmail}
                             style={styles.mainButton}
                         />
 
                         <Button
-                            title={isLogin ? 'Noch kein Konto? Registrieren' : 'Bereits ein Konto? Anmelden'}
+                            title={isLogin ? 'Noch kein Account? Hier registrieren' : 'Bereits einen Account? Hier einloggen'}
                             variant="secondary"
                             onPress={() => setIsLogin(!isLogin)}
                             style={styles.switchButton}
@@ -140,40 +152,58 @@ const styles = StyleSheet.create({
     scrollContent: {
         flexGrow: 1,
         padding: 24,
-        justifyContent: 'center',
+        paddingBottom: 40,
     },
     headerContainer: {
         alignItems: 'center',
-        marginBottom: 40,
+        marginVertical: 40,
     },
     iconContainer: {
-        width: 80,
-        height: 80,
-        borderRadius: 40,
+        width: 90,
+        height: 90,
+        borderRadius: 45,
         backgroundColor: 'rgba(255, 105, 180, 0.15)',
         justifyContent: 'center',
         alignItems: 'center',
-        marginBottom: 16,
+        marginBottom: 20,
+        overflow: 'hidden',
+        shadowColor: '#ff69b4',
+        shadowOffset: { width: 0, height: 10 },
+        shadowOpacity: 0.3,
+        shadowRadius: 15,
+        elevation: 10,
     },
-    header: {
-        fontSize: 36,
-        fontWeight: 'bold',
-        color: '#ffb6c1',
+    headerTitle: {
+        fontSize: 34,
+        fontWeight: '900',
+        color: '#fff',
         textAlign: 'center',
         marginBottom: 8,
-        letterSpacing: 1,
+        letterSpacing: -0.5,
     },
     subheader: {
-        fontSize: 18,
-        color: '#d88cae',
+        fontSize: 16,
+        color: 'rgba(255,255,255,0.6)',
         textAlign: 'center',
+        paddingHorizontal: 20,
+        lineHeight: 22,
+    },
+    glassWrapper: {
+        borderRadius: 28,
+        overflow: 'hidden',
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.1)',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 20 },
+        shadowOpacity: 0.4,
+        shadowRadius: 30,
+        elevation: 20,
     },
     formContainer: {
-        backgroundColor: 'rgba(74, 26, 47, 0.9)',
-        borderRadius: 24,
         padding: 24,
-        borderWidth: 1,
-        borderColor: '#b34180',
+    },
+    inputSection: {
+        marginBottom: 16,
     },
     checkboxContainer: {
         flexDirection: 'row',
@@ -182,11 +212,11 @@ const styles = StyleSheet.create({
         paddingVertical: 8,
     },
     checkbox: {
-        width: 24,
-        height: 24,
+        width: 22,
+        height: 22,
         borderRadius: 6,
         borderWidth: 2,
-        borderColor: '#b3668c',
+        borderColor: 'rgba(255,255,255,0.2)',
         justifyContent: 'center',
         alignItems: 'center',
         marginRight: 12,
@@ -196,19 +226,44 @@ const styles = StyleSheet.create({
         borderColor: '#ff69b4',
     },
     checkboxLabel: {
-        color: '#e6b3cc',
-        fontSize: 14,
+        color: 'rgba(255,255,255,0.6)',
+        fontSize: 13,
         flex: 1,
     },
+    mainButtonContainer: {
+        borderRadius: 16,
+        overflow: 'hidden',
+        shadowColor: '#ff1493',
+        shadowOffset: { width: 0, height: 8 },
+        shadowOpacity: 0.3,
+        shadowRadius: 12,
+        elevation: 8,
+    },
     mainButton: {
-        marginBottom: 16,
-        backgroundColor: '#ff1493',
-        borderRadius: 12,
+        paddingVertical: 18,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    mainButtonText: {
+        color: '#fff',
+        fontSize: 16,
+        fontWeight: '900',
+        letterSpacing: 0.5,
     },
     switchButton: {
-        backgroundColor: 'rgba(179, 65, 128, 0.3)',
-        borderWidth: 1,
-        borderColor: '#ff69b4',
-        borderRadius: 12,
+        marginTop: 20,
+        padding: 10,
+        alignItems: 'center',
+    },
+    switchButtonText: {
+        color: 'rgba(255,255,255,0.4)',
+        fontSize: 14,
+        fontWeight: '600',
+    },
+    footerText: {
+        color: 'rgba(255,255,255,0.3)',
+        fontSize: 12,
+        textAlign: 'center',
+        marginTop: 30,
     },
 });

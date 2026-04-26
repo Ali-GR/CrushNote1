@@ -29,12 +29,13 @@ export default function ReportScreen({ route, navigation }: any) {
 
         const reasonLabel = REPORT_REASONS.find(r => r.id === selectedReason)?.label;
 
-        const { error } = await supabase.from('reports').insert({
+        // Insert report and GET the ID back
+        const { data: reportData, error } = await supabase.from('reports').insert({
             target_id: targetId,
             target_type: type,
             reporter_id: user?.id,
             reason: reasonLabel,
-        });
+        }).select().single();
 
         if (error) {
             Alert.alert('Fehler', error.message);
@@ -42,38 +43,33 @@ export default function ReportScreen({ route, navigation }: any) {
             return;
         }
 
-        const reportId = (error as any) === null ? (await supabase.from('reports').select('id').eq('reporter_id', user?.id).order('created_at', { ascending: false }).limit(1).single()).data?.id : null;
+        const reportId = reportData.id;
+        setToastMessage("KI bewertet den Inhalt... 🤖");
 
-        // 1. Community Moderation (SQL RPC)
         try {
-            const { data: modResult } = await supabase.rpc('moderate_reported_post', {
-                post_uuid: targetId,
+            // Call AI Moderation Edge Function
+            const { data: aiResult, error: aiError } = await supabase.functions.invoke('ai-moderation', {
+                body: { report_id: reportId }
             });
 
-            if (modResult?.action === 'deleted') {
-                setToastMessage(`Beitrag wurde entfernt! ⚖️ (${modResult.strikes} Strike${modResult.strikes > 1 ? 's' : ''})`);
-            } else {
-                // 2. AI Moderation (Edge Function Call)
-                setToastMessage("KI prüft den Beitrag... 🤖");
-                const { data: aiResult, error: aiError } = await supabase.functions.invoke('ai-moderation', {
-                    body: { report_id: reportId }
-                });
+            if (aiError) throw aiError;
 
-                if (aiResult?.status === 'violation') {
-                    setToastMessage("KI hat Verstoß erkannt! Beitrag gelöscht. 🛡️");
-                } else {
-                    const remaining = 3 - (modResult?.report_count || 0);
-                    setToastMessage(`Danke! 📋 (Noch ${remaining} Meldungen bis zum Community-Bann)`);
-                }
+            if (aiResult?.status === 'violation') {
+                setToastMessage("Verstoß erkannt! Beitrag gelöscht. 🛡️");
+            } else {
+                setToastMessage("Danke! KI hat keinen Verstoß gefunden. 📋");
             }
         } catch (e) {
-            setToastMessage("Danke für deine Meldung!");
+            console.error(e);
+            setToastMessage("Meldung erfolgreich eingegangnen!");
         }
 
         setTimeout(() => {
             setLoading(false);
-            navigation.goBack();
-        }, 2000);
+            if (navigation.canGoBack()) {
+                navigation.goBack();
+            }
+        }, 3000);
     };
 
     return (

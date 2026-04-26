@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import { MessageCircle, Flag, Heart } from 'lucide-react-native';
+import { MessageCircle, Flag, Heart, Trash2 } from 'lucide-react-native';
 import { BlurView } from 'expo-blur';
 import Animated, { useSharedValue, useAnimatedStyle, withSpring, withSequence } from 'react-native-reanimated';
 import { supabase } from '../lib/supabase';
@@ -12,9 +12,10 @@ interface PostCardProps {
     onReport?: () => void;
     userId?: string;
     commentCount?: number;
+    onDelete?: () => void;
 }
 
-export const PostCard = ({ post, onPress, onLike, onReport, userId, commentCount }: PostCardProps) => {
+export const PostCard = ({ post, onPress, onLike, onReport, userId, commentCount, onDelete }: PostCardProps) => {
     const scale = useSharedValue(1);
     const [liked, setLiked] = useState(false);
     const [likesCount, setLikesCount] = useState(post.likes_count || 0);
@@ -84,12 +85,12 @@ export const PostCard = ({ post, onPress, onLike, onReport, userId, commentCount
         const date = new Date(dateIdx);
         const now = new Date();
         const seconds = Math.floor((now.getTime() - date.getTime()) / 1000);
-        if (seconds < 60) return 'Just now';
+        if (seconds < 60) return 'Gerade eben';
         const minutes = Math.floor(seconds / 60);
-        if (minutes < 60) return `${minutes}m ago`;
+        if (minutes < 60) return `${minutes}m`;
         const hours = Math.floor(minutes / 60);
-        if (hours < 24) return `${hours}h ago`;
-        return `${Math.floor(hours / 24)}d ago`;
+        if (hours < 24) return `${hours}h`;
+        return `${Math.floor(hours / 24)} Tg.`;
     };
 
     const CardContent = () => (
@@ -97,15 +98,27 @@ export const PostCard = ({ post, onPress, onLike, onReport, userId, commentCount
             {/* Header */}
             <View style={styles.header}>
                 <View>
-                    <Text style={styles.headerText}>
-                        <Text style={styles.nickname}>{post.profiles?.nickname || 'Anonym'}</Text>
-                        <Text style={styles.school}> • {post.schools?.name || 'Schule'}</Text>
-                    </Text>
+                    <View style={styles.headerText}>
+                        <Text style={[styles.nickname, post.profiles?.is_premium && styles.premiumNickname]} numberOfLines={1}>
+                            {post.profiles?.nickname || 'Anonym'}
+                            {post.profiles?.is_premium && " 👑"}
+                        </Text>
+                        <Text style={styles.school} numberOfLines={1} ellipsizeMode="tail">
+                            • {post.schools?.name || 'Schule'}
+                        </Text>
+                    </View>
                     <Text style={styles.timestamp}>{timeAgo(post.created_at)}</Text>
                 </View>
-                <TouchableOpacity onPress={onReport}>
-                    <Flag size={16} color="#666" />
-                </TouchableOpacity>
+                <View style={styles.headerRight}>
+                    {userId === post.user_id && onDelete && (
+                        <TouchableOpacity onPress={onDelete} style={{ marginRight: 15 }}>
+                            <Trash2 size={16} color="#FF4444" />
+                        </TouchableOpacity>
+                    )}
+                    <TouchableOpacity onPress={onReport}>
+                        <Flag size={16} color="#666" />
+                    </TouchableOpacity>
+                </View>
             </View>
 
             {/* Content */}
@@ -141,7 +154,14 @@ export const PostCard = ({ post, onPress, onLike, onReport, userId, commentCount
     );
 
     return (
-        <TouchableOpacity onPress={onPress} activeOpacity={0.9} style={styles.cardContainer}>
+        <TouchableOpacity 
+            onPress={onPress} 
+            activeOpacity={0.9} 
+            style={[
+                styles.cardContainer,
+                post.profiles?.is_premium && styles.premiumCard
+            ]}
+        >
             <View style={[styles.glassBackground, { backgroundColor: 'rgba(26, 26, 46, 0.8)' }]} />
             <BlurView intensity={20} tint="dark" style={StyleSheet.absoluteFill} />
             <CardContent />
@@ -175,6 +195,10 @@ const styles = StyleSheet.create({
         marginBottom: 12,
     },
     headerText: {
+        flexDirection: 'row',
+        alignItems: 'center',
+    },
+    headerRight: {
         flexDirection: 'row',
         alignItems: 'center',
     },
@@ -219,5 +243,19 @@ const styles = StyleSheet.create({
         color: '#fff',
         fontSize: 14,
         fontWeight: '600',
+    },
+    premiumCard: {
+        borderColor: '#FFD700', // Gold-Rahmen
+        borderWidth: 2,
+        shadowColor: '#FFD700',
+        shadowOpacity: 0.8,
+        shadowRadius: 15,
+        elevation: 10,
+        backgroundColor: 'rgba(40, 30, 0, 0.9)', // Dunkel-Goldener Hintergrund
+    },
+    premiumNickname: {
+        color: '#FFD700', // Goldene Schrift
+        textShadowColor: 'rgba(255, 215, 0, 0.5)',
+        textShadowRadius: 4,
     },
 });

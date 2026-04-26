@@ -7,8 +7,15 @@
         "preview": {
             "android": {
                 "buildType": "apk"
+            },
+            "ios": {
+                "simulator": true
             }
         },
-        "production": {}
+        "production": {
+            "ios": {
+                "distribution": "store"
+            }
+        }
     }
 }

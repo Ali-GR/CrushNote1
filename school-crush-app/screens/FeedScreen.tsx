@@ -1,37 +1,50 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
-import { View, FlatList, StyleSheet, RefreshControl, Text, TouchableOpacity, Dimensions, Animated, Easing, Platform } from 'react-native';
+import { View, FlatList, StyleSheet, RefreshControl, Text, TouchableOpacity, Dimensions, Animated, Easing, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { supabase } from '../lib/supabase';
 import { PostCard } from '../components/PostCard';
+import { AdCard } from '../components/AdCard';
 import { Plus, LogOut, Heart, User, Settings, Shield } from 'lucide-react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useAuth } from '../context/AuthContext';
 import { LinearGradient } from 'expo-linear-gradient';
 import { FloatingHeart } from '../components/HeartAnimation';
-import Constants from 'expo-constants';
+import PremiumUpsellModal from '../components/PremiumUpsellModal';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Sparkles, ChevronRight } from 'lucide-react-native';
 
-const isExpoGo = Constants.appOwnership === 'expo';
+// ---------------------------------------------------------------------------
+// Feed-Manager: Mische normale Posts mit Werbeanzeigen.
+// Regel: nach jeweils 3 Posts → 1 Anzeige  (Position % 4 === 3)
+// ---------------------------------------------------------------------------
+type FeedItem =
+    | { kind: 'post'; data: any }
+    | { kind: 'ad'; feedIndex: number };
 
-// Only require AdMob if not in Expo Go to avoid missing native module crash
-let BannerAd: any, BannerAdSize: any, TestIds: any;
-if (!isExpoGo) {
-    try {
-        const AdMob = require('react-native-google-mobile-ads');
-        BannerAd = AdMob.BannerAd;
-        BannerAdSize = AdMob.BannerAdSize;
-        TestIds = AdMob.TestIds;
-    } catch (e) {
-        console.warn("AdMob module not found, skipping ads.");
+function buildFeedItems(posts: any[], isPremium: boolean): FeedItem[] {
+    const items: FeedItem[] = [];
+    if (isPremium) {
+        // No ads for premium users
+        return posts.map(p => ({ kind: 'post', data: p }));
     }
-}
 
-const AD_UNIT_ID = (isExpoGo || !TestIds)
-  ? 'unused'
-  : __DEV__ 
-    ? TestIds.ADAPTIVE_BANNER 
-    : (Platform.OS === 'ios' 
-        ? process.env.EXPO_PUBLIC_ADMOB_IOS_BANNER_ID 
-        : process.env.EXPO_PUBLIC_ADMOB_ANDROID_BANNER_ID) || TestIds.ADAPTIVE_BANNER;
+    let postIdx = 0;
+
+    // Wir iterieren durch die Feed-Positionen (0-basiert).
+    // (feedIndex + 1) % 4 === 0  →  Anzeige  (Pos. 3, 7, 11, …)
+    // Sonst                       →  normaler Post
+    let feedIndex = 0;
+    while (postIdx < posts.length) {
+        if ((feedIndex + 1) % 4 === 0) {
+            items.push({ kind: 'ad', feedIndex });
+        } else {
+            items.push({ kind: 'post', data: posts[postIdx] });
+            postIdx++;
+        }
+        feedIndex++;
+    }
+    return items;
+}
 
 const { width } = Dimensions.get('window');
 
@@ -41,9 +54,27 @@ export default function FeedScreen({ navigation }: any) {
     const [refreshing, setRefreshing] = useState(false);
     const [hearts, setHearts] = useState<{ id: number; x: number }[]>([]);
     const [commentCounts, setCommentCounts] = useState<Record<string, number>>({});
+    const [showPremiumModal, setShowPremiumModal] = useState(false);
 
     // Animation for FAB pulse
     const pulseAnim = useRef(new Animated.Value(1)).current;
+
+    // Check for premium upsell on session start — max. 1x pro Tag
+    useEffect(() => {
+        const checkSession = async () => {
+            if (profile && !profile.is_premium) {
+                const lastShown = await AsyncStorage.getItem('upsell_last_shown');
+                const today = new Date().toDateString();
+                if (lastShown !== today) {
+                    setTimeout(() => {
+                        setShowPremiumModal(true);
+                        AsyncStorage.setItem('upsell_last_shown', today);
+                    }, 2000);
+                }
+            }
+        };
+        checkSession();
+    }, [profile?.id, profile?.is_premium]);
 
     useEffect(() => {
         Animated.loop(
@@ -75,15 +106,25 @@ export default function FeedScreen({ navigation }: any) {
         try {
             const { data, error } = await supabase
                 .from('posts')
-                .select('*, profiles(id, nickname, school_id), schools(id, name)')
+                .select('*, profiles(id, nickname, school_id, is_premium), schools(id, name)')
                 .eq('school_id', profile.school_id)
                 .order('created_at', { ascending: false });
 
             if (error) {
                 console.error("Fetch posts error:", error.message);
             } else if (data) {
+                // Ranking Boost: Premium posts first, then regular posts (both sorted by date)
+                const sortedData = [...data].sort((a, b) => {
+                    const aIsPremium = a.profiles?.is_premium ? 1 : 0;
+                    const bIsPremium = b.profiles?.is_premium ? 1 : 0;
+                    if (aIsPremium !== bIsPremium) {
+                        return bIsPremium - aIsPremium;
+                    }
+                    return 0; // Keep the 'created_at' order from the query
+                });
+                
                 console.log("FeedScreen: Fetched posts count:", data.length);
-                setPosts(data);
+                setPosts(sortedData);
 
                 // Fetch comment counts
                 const postIds = data.map((p: any) => p.id);
@@ -130,6 +171,32 @@ export default function FeedScreen({ navigation }: any) {
         setHearts(prev => prev.filter(h => h.id !== id));
     };
 
+    const handleDeletePost = (postId: string) => {
+        Alert.alert(
+            "Beitrag löschen",
+            "Möchtest du diesen Beitrag wirklich löschen?",
+            [
+                { text: "Abbrechen", style: "cancel" },
+                {
+                    text: "Löschen",
+                    style: "destructive",
+                    onPress: async () => {
+                        const { error } = await supabase
+                            .from('posts')
+                            .delete()
+                            .eq('id', postId);
+
+                        if (!error) {
+                            setPosts(prev => prev.filter(p => p.id !== postId));
+                        } else {
+                            Alert.alert("Fehler", "Beitrag konnte nicht gelöscht werden.");
+                        }
+                    }
+                }
+            ]
+        );
+    };
+
     return (
         <View
             style={[styles.container, { backgroundColor: '#cc2952' }]}
@@ -158,55 +225,55 @@ export default function FeedScreen({ navigation }: any) {
                 </View>
 
                 <FlatList
-                    data={(() => {
-                        const dataWithAds = [];
-                        posts.forEach((post, index) => {
-                            dataWithAds.push(post);
-                            // Insert ad every 4th post
-                            if ((index + 1) % 4 === 0) {
-                                dataWithAds.push({ id: `ad-${index}`, isAd: true });
-                            }
-                        });
-                        return dataWithAds;
-                    })()}
-                    keyExtractor={(item) => item.id}
-                    renderItem={({ item }) => {
-                        if (item.isAd) {
-                            if (isExpoGo) {
-                                return (
-                                    <View style={[styles.adContainer, { height: 60, justifyContent: 'center' }]}>
-                                        <Text style={styles.adLabel}>Werbung Platzhalter (In Expo Go deaktiviert)</Text>
-                                    </View>
-                                );
-                            }
-                            return (
-                                <View style={styles.adContainer}>
-                                    <Text style={styles.adLabel}>Anzeige</Text>
-                                    <BannerAd
-                                        unitId={AD_UNIT_ID}
-                                        size={BannerAdSize.ANCHORED_ADAPTIVE_BANNER}
-                                    />
-                                </View>
-                            );
+                    data={buildFeedItems(posts, !!profile?.is_premium)}
+                    keyExtractor={(item, index) =>
+                        item.kind === 'post' ? item.data.id : `ad-${index}`
+                    }
+                    renderItem={({ item }: { item: FeedItem }) => {
+                        if (item.kind === 'ad') {
+                            return <AdCard feedIndex={item.feedIndex} />;
                         }
                         return (
                             <PostCard
-                                post={item}
-                                onPress={() => navigation.navigate('Comments', { post: item })}
+                                post={item.data}
+                                onPress={() => navigation.navigate('Comments', { postId: item.data.id })}
                                 onLike={addHeart}
-                                onReport={() => navigation.navigate('Report', { targetId: item.id, type: 'post' })}
+                                onReport={() => navigation.navigate('Report', { targetId: item.data.id, type: 'post' })}
                                 userId={user?.id}
-                                commentCount={commentCounts[item.id] || 0}
+                                commentCount={commentCounts[item.data.id] || 0}
+                                onDelete={() => handleDeletePost(item.data.id)}
                             />
                         );
                     }}
                     contentContainerStyle={styles.list}
+                    ListHeaderComponent={
+                        (!profile?.is_premium) ? (
+                            <TouchableOpacity 
+                                style={styles.premiumBanner}
+                                onPress={() => navigation.navigate('Premium')}
+                                activeOpacity={0.9}
+                            >
+                                <LinearGradient
+                                    colors={['#FF10F0', '#9D50BB']}
+                                    start={{ x: 0, y: 0 }}
+                                    end={{ x: 1, y: 0 }}
+                                    style={styles.bannerGradient}
+                                >
+                                    <Sparkles color="#fff" size={20} />
+                                    <Text style={styles.bannerText}>
+                                        Hol dir Premium für werbefreies Posten & GIFs! 💎
+                                    </Text>
+                                    <ChevronRight color="#fff" size={18} />
+                                </LinearGradient>
+                            </TouchableOpacity>
+                        ) : null
+                    }
                     refreshControl={
                         <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#FF10F0" />
                     }
                     ListEmptyComponent={
                         <View style={styles.emptyContainer}>
-                            <Text style={styles.emptyText}>No posts yet. Be the first!</Text>
+                            <Text style={styles.emptyText}>Noch keine Posts. Sei der Erste! 💌</Text>
                         </View>
                     }
                 />
@@ -231,6 +298,15 @@ export default function FeedScreen({ navigation }: any) {
                         </View>
                     </Animated.View>
                 </TouchableOpacity>
+
+                <PremiumUpsellModal 
+                    visible={showPremiumModal} 
+                    onClose={() => setShowPremiumModal(false)} 
+                    onSubscribe={() => {
+                        setShowPremiumModal(false);
+                        navigation.navigate('Premium');
+                    }}
+                />
             </SafeAreaView>
         </View>
     );
@@ -331,19 +407,27 @@ const styles = StyleSheet.create({
         borderWidth: 2,
         borderColor: 'rgba(255,255,255,0.2)',
     },
-    adContainer: {
-        marginVertical: 12,
-        alignItems: 'center',
-        backgroundColor: 'rgba(255, 255, 255, 0.05)',
-        borderRadius: 12,
-        paddingVertical: 10,
+    premiumBanner: {
+        marginBottom: 16,
+        borderRadius: 16,
         overflow: 'hidden',
+        elevation: 8,
+        shadowColor: '#FF10F0',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 8,
     },
-    adLabel: {
-        color: 'rgba(255, 255, 255, 0.4)',
-        fontSize: 10,
-        marginBottom: 4,
-        textTransform: 'uppercase',
-        letterSpacing: 1,
+    bannerGradient: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingVertical: 14,
+        paddingHorizontal: 16,
+    },
+    bannerText: {
+        flex: 1,
+        color: '#fff',
+        fontWeight: 'bold',
+        fontSize: 13,
+        marginLeft: 10,
     },
 });
